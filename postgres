@@ -1,0 +1,51 @@
+#!/bin/bash
+#####arayüz###########
+e=$(ls /sys/class/net/ | grep e)
+#######arayüz ayağa kaldırma############
+/sbin/ifup  $e
+############yeniden açılmada ayağa kaldırma#################################
+sed -i 's/ONBOOT="no"/ONBOOT="yes"/' /etc/sysconfig/network-scripts/ifcfg-$e
+############internet bağlantısı testi#######################################
+if ping -c 1 1.1  &> /dev/null
+then
+  echo "internet bağlantısı mevcut"
+yum install net-tools -y
+yum install bash-completion -y
+yum install wget -y
+else
+  echo " hata"
+exit
+fi
+
+##########paketleri yükle#########################################################################
+mkdir /paketler
+wget https://yum.postgresql.org/11/redhat/rhel-7-x86_64/postgresql11-11.2-1PGDG.rhel7.x86_64.rpm -P /paketler
+wget https://yum.postgresql.org/11/redhat/rhel-7-x86_64/postgresql11-contrib-11.2-1PGDG.rhel7.x86_64.rpm -P /paketler
+wget https://yum.postgresql.org/11/redhat/rhel-7-x86_64/postgresql11-libs-11.2-1PGDG.rhel7.x86_64.rpm -P /paketler
+wget https://yum.postgresql.org/11/redhat/rhel-7-x86_64/postgresql11-server-11.2-1PGDG.rhel7.x86_64.rpm -P /paketler
+
+
+yum install -y /paketler/*
+###############paketleri-sil###################################################################################
+rm -rf /paketler
+
+#######################kurulduğunu doğrula####################################################################
+
+#(cat /etc/passwd | grep postgres | awk -F:  '{print  $1}')
+dogrula=$(grep -ic "postgres" /etc/passwd)
+
+if [ $dogrula -eq 1 ]
+then
+echo "paketler yüklenmiştir"
+/usr/pgsql-11/bin/postgresql-11-setup 	initdb 
+systemctl enable postgresql-11		
+systemctl start postgresql-11
+else
+exit
+fi
+
+#########################izinler#################################
+sed -i "s/^\(listen_addresses .*\)/listen_addresses = '*' #### \1/" /var/lib/pgsql/11/data/postgresql.conf
+
+echo "host    all             all             0.0.0.0/0            md5" >> /var/lib/pgsql/11/data/pg_hba.conf
+
